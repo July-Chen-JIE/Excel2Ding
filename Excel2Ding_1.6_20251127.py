@@ -15,27 +15,65 @@ import warnings
 import re
 import traceback
 from tkinter import ttk
+try:
+    import ttkbootstrap as tb
+except ImportError:
+    import sys, subprocess
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "install", "ttkbootstrap"], check=True)
+        import ttkbootstrap as tb
+    except Exception:
+        tb = None
+
+if tb:
+    from ttkbootstrap.widgets import DateEntry as TBDateEntry
+    _bootstrap_available = True
+else:
+    _bootstrap_available = False
+    TBDateEntry = None
 from tkcalendar import DateEntry
 import json
 from openpyxl.styles import Alignment
 from openpyxl import load_workbook
 import logging
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "V1.7"))
 from ui_config import (
     WINDOW_SIZE,
     PADDING,
     PRIMARY_COLOR,
+    SECONDARY_COLOR,
     SUCCESS_COLOR,
     WARNING_COLOR,
     DANGER_COLOR,
     BG_COLOR,
     TEXT_COLOR,
+    SECONDARY_TEXT,
     BORDER_COLOR,
+    PANEL_BG,
+    CARD_BG,
+    HOVER_BG,
+    PLACEHOLDER_COLOR,
     TITLE_FONT,
     SUBTITLE_FONT,
     LABEL_FONT,
     BUTTON_FONT,
     ENTRY_FONT,
+    INFO_COLOR,
+    LIGHT_BORDER,
+    FOCUS_BORDER,
+    BUTTON_PADDING,
+    ENTRY_PADDING,
+    CARD_PADDING,
+    GROUP_PADDING,
+    apply_design_system,
+    SHADOW_COLOR,
 )
+from core.state import AppState
+from ui.widgets import make_button, make_date_entry
+from core import transform as transform_core
+from core import mapping as mapping_core
+from ui import components as ui_components
 
 
 warnings.filterwarnings('ignore')
@@ -219,7 +257,7 @@ def get_sheets_with_data(file_path):
         return []
 
 
-def process_raw_excel(input_file, output_file, start_date=None, end_date=None, target_product=None, new_contact=None, product_contact_list=None, progress_callback=None):
+def process_raw_excel(input_file, output_file, start_date=None, end_date=None, target_product=None, new_contact=None, product_contact_list=None, progress_callback=None, cancel_event=None):
     """处理原始Excel文件，自动处理多sheet和时间格式"""
     try:
         if progress_callback:
@@ -236,6 +274,8 @@ def process_raw_excel(input_file, output_file, start_date=None, end_date=None, t
         # 读取所有工作表数据
         all_data = []
         for i, sheet_name in enumerate(sheet_names):
+            if cancel_event and getattr(cancel_event, 'is_set', None) and cancel_event.is_set():
+                return False
             try:
                 if progress_callback:
                     progress_callback(20 + i * 20 // len(sheet_names), f"正在读取工作表: {sheet_name}")
@@ -247,7 +287,7 @@ def process_raw_excel(input_file, output_file, start_date=None, end_date=None, t
                     header=1,  # 使用第二行作为表头
                     converters={'发起时间': str}
                 )
-                df = deep_clean_columns(df)
+                df = transform_core.deep_clean_columns(df)
                 
                 # 添加工作表名列
                 df['数据来源'] = sheet_name
@@ -263,6 +303,8 @@ def process_raw_excel(input_file, output_file, start_date=None, end_date=None, t
         if progress_callback:
             progress_callback(40, "合并所有工作表数据...")
         
+        if cancel_event and getattr(cancel_event, 'is_set', None) and cancel_event.is_set():
+            return False
         combined_df = pd.concat(all_data, ignore_index=True)
         
         if progress_callback:
@@ -271,8 +313,8 @@ def process_raw_excel(input_file, output_file, start_date=None, end_date=None, t
         # 列匹配 (60%)
         if progress_callback:
             progress_callback(60, "正在匹配列名...")
-        column_mapper = ColumnMapper()
-        matched = dynamic_column_matching(combined_df, column_mapper)
+        column_mapper = mapping_core.ColumnMapper()
+        matched = transform_core.dynamic_column_matching(combined_df, column_mapper)
         
         # 日期筛选逻辑
         if start_date and end_date:
@@ -376,6 +418,8 @@ def process_raw_excel(input_file, output_file, start_date=None, end_date=None, t
         ]
         
         # 创建输出DataFrame，融合动态匹配与别名回退，提高填充完整度
+        if cancel_event and getattr(cancel_event, 'is_set', None) and cancel_event.is_set():
+            return False
         output_df = pd.DataFrame()
         cm = column_mapper.get_output_columns()
         rev_cm = {v: k for k, v in cm.items()}  # 输出列名 -> 规范源名
@@ -475,6 +519,8 @@ def process_raw_excel(input_file, output_file, start_date=None, end_date=None, t
             progress_callback(95, f"正在保存结果到: {output_file}")
         
         # 保存到Excel文件
+        if cancel_event and getattr(cancel_event, 'is_set', None) and cancel_event.is_set():
+            return False
         with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
             output_df.to_excel(writer, index=False, sheet_name='处理结果')
             
@@ -546,7 +592,7 @@ class ExcelProcessor:
         return True, "OK"
 
     @staticmethod
-    def process(input_file, output_file, start_dt, end_dt, product_contact_list, progress_callback):
+    def process(input_file, output_file, start_dt, end_dt, product_contact_list, progress_callback, cancel_event=None):
         logging.info("开始处理: input=%s, output=%s, range=%s-%s, mappings=%s",
                      input_file, output_file, start_dt, end_dt, product_contact_list)
         return process_raw_excel(
@@ -556,6 +602,7 @@ class ExcelProcessor:
             end_dt,
             product_contact_list=product_contact_list,
             progress_callback=progress_callback,
+            cancel_event=cancel_event,
         )
 
 
@@ -635,9 +682,12 @@ class ProductLineManager:
 
 def create_gui():
     """创建优化的GUI界面"""
-    root = tk.Tk()
-    root.title("Excel数据处理工具 v1.5")
-    root.geometry("900x720")
+    if _bootstrap_available and tb is not None:
+        root = tb.Window(themename='cosmo')
+    else:
+        root = tk.Tk()
+    root.title("Excel数据处理工具 v1.6")
+    root.geometry(WINDOW_SIZE)
     root.minsize(600, 560)
     try:
         root.maxsize(1200, root.winfo_screenheight())
@@ -652,130 +702,22 @@ def create_gui():
     except Exception as e:
         print(f"加载图标失败: {e}")
     
-    # 现代UI样式设置 - 改进版
     style = ttk.Style()
+    apply_design_system(style)
     
-    # 主要按钮样式 - 更现代的设计
-    style.configure('TButton', 
-                   padding=(24, 16), 
-                   relief='flat', 
-                   background=PRIMARY_COLOR,
-                   foreground='white',
-                   font=('Microsoft YaHei UI', 11, 'bold'),
-                   borderwidth=0,
-                   focusthickness=0,
-                   highlightthickness=0)
-    style.map('TButton', 
-              background=[('active', '#1D4ED8'),
-                         ('pressed', '#1E3A8A'),
-                         ('disabled', '#94A3B8')],
-              foreground=[('active', 'white'),
-                         ('pressed', 'white'),
-                         ('disabled', '#CBD5E1')])
-    
-    # 次要按钮样式 - 更柔和的设计
-    style.configure('Secondary.TButton', 
-                   padding=(24, 16),
-                   relief='flat',
-                   background='#F1F5F9',
-                   foreground='#475569',
-                   font=('Microsoft YaHei UI', 11, 'bold'),
-                   borderwidth=0,
-                   focusthickness=0,
-                   highlightthickness=0)
-    style.map('Secondary.TButton',
-              background=[('active', '#E2E8F0'),
-                         ('pressed', '#CBD5E1'),
-                         ('disabled', '#F8FAFC')],
-              foreground=[('active', '#334155'),
-                         ('pressed', '#1E293B'),
-                         ('disabled', '#94A3B8')])
-    
-    # 危险按钮样式
-    style.configure('Danger.TButton', 
-                   padding=(24, 16),
-                   relief='flat',
-                   background='#EF4444',
-                   foreground='white',
-                   font=('Microsoft YaHei UI', 11, 'bold'),
-                   borderwidth=0,
-                   focusthickness=0,
-                   highlightthickness=0)
-    style.map('Danger.TButton',
-              background=[('active', '#DC2626'),
-                         ('pressed', '#B91C1C'),
-                         ('disabled', '#FCA5A5')],
-              foreground=[('active', 'white'),
-                         ('pressed', 'white'),
-                         ('disabled', '#FECACA')])
-    
-    # 现代化标签样式 - 更好的可读性
-    style.configure('TLabel', 
-                   background=BG_COLOR, 
-                   font=('Microsoft YaHei UI', 12),
-                   foreground='#374151',
-                   padding=(0, 12))
-    
-    # 现代输入框样式 - 真正的现代化设计
-    style.configure('TEntry', 
-                   padding=(20, 16), 
-                   relief='flat', 
-                   borderwidth=2,
-                   font=('Microsoft YaHei UI', 12),
-                   foreground='#1F2937',
-                   fieldbackground='white',
-                   bordercolor='#E5E7EB')
-    style.map('TEntry', 
-              bordercolor=[('focus', PRIMARY_COLOR),
-                          ('invalid', '#EF4444')],
-              fieldbackground=[('disabled', '#F9FAFB')],
-              foreground=[('disabled', '#9CA3AF')])
-    
-    style.configure('TFrame', 
-                   background=BG_COLOR,
-                   borderwidth=0)
-    
-    # 现代化分组框架样式 - 真正的卡片式设计
-    style.configure('TLabelframe', 
-                   background='white',
-                   borderwidth=0,
-                   relief='flat',
-                   padding=(35, 30))
-    
-    # 分组框架标题样式 - 更醒目
-    style.configure('TLabelframe.Label', 
-                   background='white',
-                   font=('Microsoft YaHei UI', 14, 'bold'),
-                   foreground='#111827',
-                   padding=(0, 0, 0, 20))
-    
-    # 现代化滚动条样式
-    style.configure('Vertical.TScrollbar',
-                   gripcount=0,
-                   background='#E5E7EB',
-                   darkcolor='#E5E7EB',
-                   lightcolor='#E5E7EB',
-                   troughcolor='white',
-                   bordercolor='#E5E7EB',
-                   arrowcolor='#6B7280')
-    style.map('Vertical.TScrollbar',
-              background=[('active', '#D1D5DB')])
-    
-    style.configure('Horizontal.TScrollbar',
-                   gripcount=0,
-                   background='#E5E7EB',
-                   darkcolor='#E5E7EB',
-                   lightcolor='#E5E7EB',
-                   troughcolor='white',
-                   bordercolor='#E5E7EB',
-                   arrowcolor='#6B7280')
-    style.map('Horizontal.TScrollbar',
-              background=[('active', '#D1D5DB')])
 
-    # 固定按钮专用样式（近似 120x40）
-    style.configure('Fixed.TButton', padding=(18, 10), font=BUTTON_FONT)
     
-    # 顶层 Notebook 容器
+    # 启动淡入动画，提升初始体验
+    try:
+        root.attributes('-alpha', 0.0)
+        def _fade_in(step=0):
+            if step <= 10:
+                root.attributes('-alpha', step/10)
+                root.after(20, lambda: _fade_in(step+1))
+        _fade_in()
+    except Exception:
+        pass
+
     app_notebook = ttk.Notebook(root)
     app_notebook.pack(fill=tk.BOTH, expand=True)
 
@@ -783,20 +725,57 @@ def create_gui():
     main_tab = ttk.Frame(app_notebook)
     app_notebook.add(main_tab, text="数据处理")
 
-    # 主内容页签内创建可滚动容器（自动隐藏/显示滚动条）
     content_canvas = tk.Canvas(main_tab, highlightthickness=0, bg=BG_COLOR)
     v_scroll = tk.Scrollbar(main_tab, orient='vertical', command=content_canvas.yview, width=8)
     h_scroll = tk.Scrollbar(main_tab, orient='horizontal', command=content_canvas.xview, width=8)
     content_canvas.configure(yscrollcommand=v_scroll.set, xscrollcommand=h_scroll.set)
     content_canvas.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
-    h_scroll.pack(fill=tk.X, side=tk.BOTTOM)
 
-    # 内部主框架（随内容高度变化）
-    main_frame = ttk.Frame(content_canvas, padding=15)
+    main_frame = ttk.Frame(content_canvas, padding=12)
     content_window = content_canvas.create_window((0, 0), window=main_frame, anchor='nw')
+    def rounded_container(parent, radius=6, fill=CARD_BG, pad=16):
+        c = tk.Canvas(parent, bg=BG_COLOR, highlightthickness=0)
+        f = ttk.Frame(c, padding=pad)
+        def draw(_=None):
+            w = parent.winfo_width()
+            if w <= 1:
+                w = 700
+            h = f.winfo_reqheight() + pad * 2
+            c.configure(width=w, height=h)
+            c.delete('all')
+            r = radius
+            x1 = 6
+            y1 = 6
+            x2 = w - 12
+            y2 = h - 12
+            c.create_rectangle(x1+3, y1+3, x2+3, y2+3, fill=SHADOW_COLOR, outline=SHADOW_COLOR)
+            c.create_arc(x1, y1, x1 + 2*r, y1 + 2*r, start=90, extent=90, fill=fill, outline=fill)
+            c.create_arc(x2 - 2*r, y1, x2, y1 + 2*r, start=0, extent=90, fill=fill, outline=fill)
+            c.create_arc(x1, y2 - 2*r, x1 + 2*r, y2, start=180, extent=90, fill=fill, outline=fill)
+            c.create_arc(x2 - 2*r, y2 - 2*r, x2, y2, start=270, extent=90, fill=fill, outline=fill)
+            c.create_rectangle(x1 + r, y1, x2 - r, y2, fill=fill, outline=fill)
+            c.create_rectangle(x1, y1 + r, x2, y2 - r, fill=fill, outline=fill)
+            c.create_window((pad, pad), window=f, anchor='nw')
+        parent.bind('<Configure>', draw)
+        c.pack(fill=tk.X, pady=(0, 16))
+        return f
 
-    # 动态滚动条显隐逻辑
-    def _update_scroll_region(event=None):
+    # 鼠标滚轮支持（按需启用）
+    mousewheel_bound = False
+    def _on_mousewheel(event):
+        delta = int(-1*(event.delta/120))
+        content_canvas.yview_scroll(delta, 'units')
+    def _set_mousewheel_binding(need_bind: bool):
+        nonlocal mousewheel_bound
+        if need_bind and not mousewheel_bound:
+            content_canvas.bind_all('<MouseWheel>', _on_mousewheel)
+            mousewheel_bound = True
+        elif not need_bind and mousewheel_bound:
+            content_canvas.unbind_all('<MouseWheel>')
+            mousewheel_bound = False
+
+    _update_job = None
+    def _update_scroll_region():
         bbox = content_canvas.bbox('all')
         content_canvas.configure(scrollregion=bbox)
         if not bbox:
@@ -813,56 +792,85 @@ def create_gui():
             h_scroll.pack(fill=tk.X, side=tk.BOTTOM)
         else:
             h_scroll.pack_forget()
-    main_frame.bind('<Configure>', _update_scroll_region)
-    content_canvas.bind('<Configure>', _update_scroll_region)
-    # 鼠标滚轮支持（Windows）
-    def _on_mousewheel(event):
-        delta = int(-1*(event.delta/120))
-        content_canvas.yview_scroll(delta, 'units')
-    content_canvas.bind_all('<MouseWheel>', _on_mousewheel)
+        _set_mousewheel_binding(needs_v or needs_h)
+        if not (needs_v or needs_h):
+            try:
+                content_canvas.yview_moveto(0)
+                content_canvas.xview_moveto(0)
+            except Exception:
+                pass
+        try:
+            content_canvas.itemconfigure(content_window, width=content_canvas.winfo_width())
+        except Exception:
+            pass
+
+    def _schedule_update(*_args):
+        nonlocal _update_job
+        if _update_job:
+            content_canvas.after_cancel(_update_job)
+        _update_job = content_canvas.after(60, _update_scroll_region)
+
+    main_frame.bind('<Configure>', _schedule_update)
+    content_canvas.bind('<Configure>', _schedule_update)
+    def apply_responsive_styles(width):
+        if width < 720:
+            style.configure('TLabel', font=('Microsoft YaHei UI', 10))
+            style.configure('TLabelframe.Label', font=('Microsoft YaHei UI', 12, 'bold'))
+            style.configure('TButton', font=('Microsoft YaHei UI', 9, 'bold'))
+            style.configure('TEntry', font=('Microsoft YaHei UI', 9))
+        elif width < 1024:
+            style.configure('TLabel', font=LABEL_FONT)
+            style.configure('TLabelframe.Label', font=SUBTITLE_FONT)
+            style.configure('TButton', font=BUTTON_FONT)
+            style.configure('TEntry', font=ENTRY_FONT)
+        else:
+            style.configure('TLabel', font=('Microsoft YaHei UI', 12))
+            style.configure('TLabelframe.Label', font=('Microsoft YaHei UI', 14, 'bold'))
+            style.configure('TButton', font=('Microsoft YaHei UI', 10, 'bold'))
+            style.configure('TEntry', font=('Microsoft YaHei UI', 10))
+    def _schedule_responsive(*_args):
+        w = root.winfo_width()
+        apply_responsive_styles(w)
+    root.bind('<Configure>', _schedule_responsive)
+    # 初始时根据内容区域决定是否启用滚动
+    _schedule_update()
     
     # 现代化标题设计 - 改进版
     title_frame = tk.Frame(main_frame, bg=BG_COLOR)
-    title_frame.pack(fill=tk.X, pady=(0, 40))
+    title_frame.pack(fill=tk.X, pady=(0, 16))
     
     title_container = tk.Frame(title_frame, bg=BG_COLOR)
     title_container.pack(side=tk.LEFT)
     
-    title_label = tk.Label(title_container, 
-                          text="Excel数据处理工具",
-                          font=('Microsoft YaHei UI', 28, 'bold'),
-                          foreground=PRIMARY_COLOR,
-                          bg=BG_COLOR)
+    title_label = ttk.Label(title_container, text="Excel数据处理工具", font=('Microsoft YaHei UI', 24, 'bold'), foreground=PRIMARY_COLOR)
     title_label.pack(anchor=tk.W)
     
-    subtitle_label = tk.Label(title_container,
-                               text="智能化数据处理和报表生成",
-                               font=('Microsoft YaHei UI', 14),
-                               foreground='#6B7280',
-                               bg=BG_COLOR)
+    subtitle_label = ttk.Label(title_container, text="智能化数据处理和报表生成", font=('Microsoft YaHei UI', 12), foreground=SECONDARY_TEXT)
     subtitle_label.pack(anchor=tk.W, pady=(8, 0))
     
-    version_label = tk.Label(title_frame,
-                            text="v1.5",
-                            font=('Microsoft YaHei UI', 14),
-                            foreground='#9CA3AF',
-                            bg=BG_COLOR)
+    version_label = ttk.Label(title_frame, text="v1.6", font=('Microsoft YaHei UI', 12), foreground=PLACEHOLDER_COLOR)
     version_label.pack(side=tk.RIGHT, pady=(15, 0))
+    try:
+        root.bind('<Return>', lambda e: start_process())
+        root.bind('<Escape>', lambda e: root.quit())
+    except Exception:
+        pass
     
     # 定义变量
     input_entry = tk.StringVar()
     output_entry = tk.StringVar()
-    start_date = tk.StringVar(value=datetime.now().replace(year=datetime.now().year-1).strftime("%Y/%m/%d"))
-    end_date = tk.StringVar(value=datetime.now().strftime("%Y/%m/%d"))
-    processor = ExcelProcessor()
+    start_date_var = tk.StringVar(value=datetime.now().replace(year=datetime.now().year-1).strftime("%Y/%m/%d"))
+    end_date_var = tk.StringVar(value=datetime.now().strftime("%Y/%m/%d"))
+    app_state = AppState()
+    processor = ExcelProcessor
     
     # 日期操作函数
     def set_week_start_end():
         today = datetime.now()
         week_start = today - timedelta(days=today.weekday())
         week_end = week_start + timedelta(days=6)
-        start_date.set(week_start.strftime("%Y/%m/%d"))
-        end_date.set(week_end.strftime("%Y/%m/%d"))
+        set_start_date(week_start.strftime("%Y/%m/%d"))
+        set_end_date(week_end.strftime("%Y/%m/%d"))
     
     def set_month_start_end():
         today = datetime.now()
@@ -872,13 +880,13 @@ def create_gui():
         else:
             next_month = month_start.replace(month=month_start.month + 1)
         month_end = next_month - timedelta(days=1)
-        start_date.set(month_start.strftime("%Y/%m/%d"))
-        end_date.set(month_end.strftime("%Y/%m/%d"))
+        set_start_date(month_start.strftime("%Y/%m/%d"))
+        set_end_date(month_end.strftime("%Y/%m/%d"))
     
     def clear_dates():
         today = datetime.now()
-        start_date.set(today.strftime("%Y/%m/%d"))
-        end_date.set(today.strftime("%Y/%m/%d"))
+        set_start_date(today.strftime("%Y/%m/%d"))
+        set_end_date(today.strftime("%Y/%m/%d"))
     
     def select_input_file():
         file_path = filedialog.askopenfilename(filetypes=[("Excel文件", "*.xlsx")])
@@ -909,51 +917,91 @@ def create_gui():
         
         process_btn.configure(state='disabled')
         exit_btn.configure(state='disabled')
-        
-        # 创建进度条窗口
-        progress_window = tk.Toplevel(root)
-        progress_window.title("处理进度")
-        progress_window.geometry("400x120")
-        progress_window.resizable(False, False)
-        progress_window.transient(root)
-        progress_window.grab_set()
-        progress_window.configure(bg=BG_COLOR)
-        
-        # 进度窗口样式
+        # config_btn 已移除，无需禁用
+
+        # 创建加载遮罩层（专业化加载状态指示器）
+        overlay_win = tk.Toplevel(root)
+        overlay_win.overrideredirect(True)
+        overlay_win.attributes('-topmost', True)
+        try:
+            overlay_win.attributes('-alpha', 0.0)
+        except Exception:
+            pass
+        # 覆盖根窗口区域
+        def _place_overlay():
+            x = root.winfo_rootx()
+            y = root.winfo_rooty()
+            w = root.winfo_width()
+            h = root.winfo_height()
+            overlay_win.geometry(f"{w}x{h}+{x}+{y}")
+        _place_overlay()
+        root.bind('<Configure>', lambda e: _place_overlay())
+        mask = tk.Frame(overlay_win, bg='#000000')
+        mask.pack(fill=tk.BOTH, expand=True)
+
+        content_card = ttk.Frame(mask, padding=30)
+        content_card.place(relx=0.5, rely=0.5, anchor='center')
+        progress_var = tk.DoubleVar(value=0)
         progress_style = ttk.Style()
-        progress_style.configure('Custom.Horizontal.TProgressbar',
-                                troughcolor='#E4E7ED',
-                                background=PRIMARY_COLOR,
-                                borderwidth=0,
-                                borderradius=10)
-        
-        progress_frame = ttk.Frame(progress_window, padding=25)
-        progress_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # 进度条
-        progress_var = tk.DoubleVar()
-        progress_bar = ttk.Progressbar(progress_frame, variable=progress_var, maximum=100, length=450, style='Custom.Horizontal.TProgressbar')
-        progress_bar.pack(pady=(0, 15))
-        
-        # 进度标签
-        progress_label = ttk.Label(progress_frame, text="准备处理...", font=LABEL_FONT, foreground=TEXT_COLOR)
+        progress_style.configure('Custom.Horizontal.TProgressbar', troughcolor='#E5E7EB', background=PRIMARY_COLOR, borderwidth=0)
+        progress_bar = ttk.Progressbar(content_card, variable=progress_var, maximum=100, length=380, style='Custom.Horizontal.TProgressbar')
+        progress_bar.pack(pady=(0, 12))
+        progress_label = ttk.Label(content_card, text="准备处理...", font=LABEL_FONT, foreground=TEXT_COLOR)
         progress_label.pack()
-        
+        import threading
+        cancel_event = threading.Event()
+        cancel_btn = make_button(content_card, text="取消", command=lambda: cancel_event.set(), width=10, role='danger')
+        cancel_btn.pack(pady=(8, 0))
+
+        # 淡入遮罩
+        try:
+            def _overlay_fade(step=0):
+                if step <= 10:
+                    overlay_win.attributes('-alpha', step/12)
+                    overlay_win.after(15, lambda: _overlay_fade(step+1))
+            _overlay_fade()
+        except Exception:
+            pass
+
         def update_progress(progress, message):
             progress_var.set(progress)
             progress_label.config(text=message)
-            progress_window.update()
+            overlay_win.update_idletasks()
         
         try:
             # 解析日期
-            start_dt = datetime.strptime(start_date.get(), "%Y/%m/%d")
-            end_dt = datetime.strptime(end_date.get(), "%Y/%m/%d")
+            start_dt = datetime.strptime(get_start_date(), "%Y/%m/%d")
+            end_dt = datetime.strptime(get_end_date(), "%Y/%m/%d")
             
             # 收集并验证产品线映射
             product_contact_list = pl_manager.get_mappings()
             valid, msg = processor.validate_mappings(product_contact_list)
             if not valid:
                 messagebox.showerror("错误", msg)
+                try:
+                    # 轻量提示，提高可感知度
+                    toast = tk.Toplevel(root)
+                    toast.overrideredirect(True)
+                    toast.attributes('-topmost', True)
+                    toast.configure(bg='#111827')
+                    lbl = tk.Label(toast, text=msg, fg='white', bg='#111827', font=('Microsoft YaHei UI', 10))
+                    lbl.pack(padx=12, pady=8)
+                    tw = lbl.winfo_reqwidth() + 24
+                    th = lbl.winfo_reqheight() + 16
+                    root.update_idletasks()
+                    rx = root.winfo_rootx()
+                    ry = root.winfo_rooty()
+                    rw = root.winfo_width()
+                    rh = root.winfo_height()
+                    toast.geometry(f"{tw}x{th}+{rx + rw//2 - tw//2}+{ry + rh - th - 40}")
+                    def _auto_close():
+                        try:
+                            toast.destroy()
+                        except Exception:
+                            pass
+                    toast.after(1800, _auto_close)
+                except Exception:
+                    pass
                 return
             
             # 生成输出文件路径
@@ -967,140 +1015,173 @@ def create_gui():
                 end_dt,
                 product_contact_list,
                 progress_callback=lambda p, msg: update_progress(p, msg),
+                cancel_event=cancel_event,
             )
             
             if success:
-                # 创建自定义对话框
-                result_window = tk.Toplevel(root)
-                result_window.title("处理完成")
-                result_window.geometry("400x150")
-                result_window.resizable(False, False)
-                
-                # 居中显示
-                result_window.update_idletasks()
-                width = result_window.winfo_width()
-                height = result_window.winfo_height()
-                x = (result_window.winfo_screenwidth() // 2) - (width // 2)
-                y = (result_window.winfo_screenheight() // 2) - (height // 2)
-                result_window.geometry('{}x{}+{}+{}'.format(width, height, x, y))
-                
-                # 设置窗口样式
-                result_frame = ttk.Frame(result_window, padding=20)
-                result_frame.pack(fill=tk.BOTH, expand=True)
-                
-                # 添加消息标签
-                ttk.Label(
-                    result_frame, 
-                    text=f"文件处理成功！\n保存路径: {os.path.basename(output_file)}",
-                    font=LABEL_FONT,
-                    wraplength=500,
-                    justify=tk.LEFT
-                ).pack(fill=tk.X, pady=(0, 20))
-                
-                # 按钮区域
-                button_frame = ttk.Frame(result_frame)
-                button_frame.pack(fill=tk.X, side=tk.BOTTOM)
-                
-                # 为了右对齐按钮添加一个空白框架
-                spacer = ttk.Frame(button_frame)
-                spacer.pack(side=tk.LEFT, fill=tk.X, expand=True)
-                
-                # 确定按钮，增加左侧间距
-                ttk.Button(
-                    button_frame,
-                    text="确定",
-                    style='TButton',
-                    command=lambda: (pl_manager.save_to_file(), result_window.destroy()),
-                    width=10,
-                ).pack(side=tk.RIGHT, padx=(0, 10))
-                # 打开按钮
-                ttk.Button(
-                    button_frame, 
-                    text="打开文件", 
-                    style='TButton',
-                    command=lambda: open_file(output_file),
-                    width=12
-                ).pack(side=tk.RIGHT, padx=(10, 10))   
-                # 打开文件函数
-                def open_file(file_path):
-                    try:
-                        os.startfile(file_path)
-                    except Exception as e:
-                        messagebox.showerror("错误", f"无法打开文件: {str(e)}")
-                    finally:
-                        result_window.destroy()
+                try:
+                    toast = tk.Toplevel(root)
+                    toast.overrideredirect(True)
+                    toast.attributes('-topmost', True)
+                    toast.configure(bg='#16A34A')
+                    lbl = tk.Label(toast, text=f"文件处理成功：{os.path.basename(output_file)}", fg='white', bg='#16A34A', font=('Microsoft YaHei UI', 10))
+                    lbl.pack(padx=14, pady=10)
+                    tw = lbl.winfo_reqwidth() + 28
+                    th = lbl.winfo_reqheight() + 20
+                    root.update_idletasks()
+                    rx = root.winfo_rootx()
+                    ry = root.winfo_rooty()
+                    rw = root.winfo_width()
+                    rh = root.winfo_height()
+                    toast.geometry(f"{tw}x{th}+{rx + rw//2 - tw//2}+{ry + rh - th - 50}")
+                    def _auto_close():
+                        try:
+                            toast.destroy()
+                        except Exception:
+                            pass
+                    toast.after(2000, _auto_close)
+                except Exception:
+                    pass
+                try:
+                    os.startfile(output_file)
+                except Exception:
+                    pass
+            else:
+                try:
+                    toast = tk.Toplevel(root)
+                    toast.overrideredirect(True)
+                    toast.attributes('-topmost', True)
+                    toast.configure(bg='#9CA3AF')
+                    lbl = tk.Label(toast, text="处理已取消", fg='white', bg='#9CA3AF', font=('Microsoft YaHei UI', 10))
+                    lbl.pack(padx=12, pady=8)
+                    tw = lbl.winfo_reqwidth() + 24
+                    th = lbl.winfo_reqheight() + 16
+                    root.update_idletasks()
+                    rx = root.winfo_rootx()
+                    ry = root.winfo_rooty()
+                    rw = root.winfo_width()
+                    rh = root.winfo_height()
+                    toast.geometry(f"{tw}x{th}+{rx + rw//2 - tw//2}+{ry + rh - th - 40}")
+                    def _auto_close():
+                        try:
+                            toast.destroy()
+                        except Exception:
+                            pass
+                    toast.after(1800, _auto_close)
+                except Exception:
+                    pass
         except Exception as e:
             messagebox.showerror("错误", f"处理失败: {str(e)}")
             traceback.print_exc()
         finally:
-            # 恢复按钮状态
-            progress_window.destroy()
+            # 关闭遮罩并恢复按钮状态
+            try:
+                overlay_win.destroy()
+            except Exception:
+                pass
             process_btn.configure(state='normal')
             exit_btn.configure(state='normal')
-            config_btn.configure(state='normal')
+            # config_btn.configure(state='normal')  # 已移除
     
     # 文件设置区域 - 改进版现代化布局
-    file_frame = ttk.LabelFrame(main_frame, text="文件设置", padding=30)
+    file_frame = ttk.LabelFrame(main_frame, text="▌文件设置", padding=16)
     file_frame.pack(fill=tk.X, pady=(0, 25))
+    try:
+        file_frame.configure(style='Card.TLabelframe')
+    except Exception:
+        pass
 
     # 输入文件行 - 更大的间距和更好的对齐
-    ttk.Label(file_frame, text="输入文件:").grid(row=0, column=0, sticky=tk.W, pady=(15, 20))
-    input_entry_widget = ttk.Entry(file_frame, textvariable=input_entry, width=50)
-    input_entry_widget.grid(row=0, column=1, sticky=tk.EW, padx=(15, 15), pady=(15, 20))
-    browse_input_btn = ttk.Button(file_frame, text="浏览", command=select_input_file)
-    browse_input_btn.grid(row=0, column=2, pady=(15, 20))
+    ttk.Label(file_frame, text="输入文件:", style='Card.TLabel').grid(row=0, column=0, sticky=tk.W, pady=(8, 12))
+    input_entry_widget = ttk.Entry(file_frame, textvariable=input_entry, width=42)
+    input_entry_widget.grid(row=0, column=1, sticky=tk.EW, padx=(12, 12), pady=(8, 12))
+    browse_input_btn = ttk.Button(file_frame, text="浏览", command=select_input_file, style='Secondary.TButton')
+    browse_input_btn.grid(row=0, column=2, pady=(8, 12))
     
     # 输出目录行 - 更大的间距和更好的对齐
-    ttk.Label(file_frame, text="输出目录:").grid(row=1, column=0, sticky=tk.W, pady=(0, 20))
-    output_entry_widget = ttk.Entry(file_frame, textvariable=output_entry, width=50)
-    output_entry_widget.grid(row=1, column=1, sticky=tk.EW, padx=(15, 15), pady=(0, 20))
-    browse_output_btn = ttk.Button(file_frame, text="浏览", command=select_output_dir)
-    browse_output_btn.grid(row=1, column=2, pady=(0, 20))
+    ttk.Label(file_frame, text="输出目录:", style='Card.TLabel').grid(row=1, column=0, sticky=tk.W, pady=(0, 12))
+    output_entry_widget = ttk.Entry(file_frame, textvariable=output_entry, width=42)
+    output_entry_widget.grid(row=1, column=1, sticky=tk.EW, padx=(12, 12), pady=(0, 12))
+    browse_output_btn = ttk.Button(file_frame, text="浏览", command=select_output_dir, style='Secondary.TButton')
+    browse_output_btn.grid(row=1, column=2, pady=(0, 12))
     
     # 设置列权重以使输入框可以扩展
     file_frame.columnconfigure(1, weight=1)
     
     # 日期筛选区域 - 改进版现代化布局
-    date_frame = ttk.LabelFrame(main_frame, text="日期筛选", padding=30)
+    date_frame = ttk.LabelFrame(main_frame, text="▌日期筛选", padding=16)
     date_frame.pack(fill=tk.X, pady=(0, 25))
+    try:
+        date_frame.configure(style='Card.TLabelframe')
+    except Exception:
+        pass
     
     # 起始日期 - 更大的间距和更好的对齐
-    ttk.Label(date_frame, text="起始日期:").grid(row=0, column=0, sticky=tk.W, pady=(15, 20))
-    start_date_entry = DateEntry(date_frame, textvariable=start_date, width=18, 
-                                date_pattern='yyyy/mm/dd', locale='zh_CN',
-                                borderwidth=2, headersbackground=PRIMARY_COLOR,
-                                selectbackground=PRIMARY_COLOR, normalbackground='white',
-                                weekendbackground='#F5F7FA', othermonthforeground='#A8ABB2',
-                                othermonthbackground='#F5F7FA')
-    start_date_entry.grid(row=0, column=1, sticky=tk.W, padx=(15, 25), pady=(15, 20))
+    ttk.Label(date_frame, text="起始日期:", style='Card.TLabel').grid(row=0, column=0, sticky=tk.W, pady=(8, 12))
+    start_date_entry = make_date_entry(date_frame, width=14, dateformat='%Y/%m/%d', bootstyle='success', firstweekday=6)
+    start_date_entry.grid(row=0, column=1, sticky=tk.W, padx=(12, 20), pady=(8, 12))
+    # 初始化起始日期显示
+    try:
+        start_date_entry.entry.delete(0, tk.END)
+        start_date_entry.entry.insert(0, start_date_var.get())
+    except Exception:
+        pass
+    def set_start_date(val):
+        start_date_var.set(val)
+        try:
+            start_date_entry.entry.delete(0, tk.END)
+            start_date_entry.entry.insert(0, val)
+        except Exception:
+            pass
+    def get_start_date():
+        try:
+            return start_date_entry.entry.get()
+        except Exception:
+            return start_date_var.get()
     
     # 结束日期 - 更大的间距和更好的对齐
-    ttk.Label(date_frame, text="结束日期:").grid(row=0, column=2, sticky=tk.W, pady=(15, 20))
-    end_date_entry = DateEntry(date_frame, textvariable=end_date, width=18,
-                              date_pattern='yyyy/mm/dd', locale='zh_CN',
-                              borderwidth=2, headersbackground=PRIMARY_COLOR,
-                              selectbackground=PRIMARY_COLOR, normalbackground='white',
-                              weekendbackground='#F5F7FA', othermonthforeground='#A8ABB2',
-                              othermonthbackground='#F5F7FA')
-    end_date_entry.grid(row=0, column=3, sticky=tk.W, padx=(15, 0), pady=(15, 20))
+    ttk.Label(date_frame, text="结束日期:", style='Card.TLabel').grid(row=0, column=2, sticky=tk.W, pady=(8, 12))
+    end_date_entry = make_date_entry(date_frame, width=14, dateformat='%Y/%m/%d', bootstyle='success', firstweekday=6)
+    end_date_entry.grid(row=0, column=3, sticky=tk.W, padx=(12, 0), pady=(8, 12))
+    try:
+        end_date_entry.entry.delete(0, tk.END)
+        end_date_entry.entry.insert(0, end_date_var.get())
+    except Exception:
+        pass
+    def set_end_date(val):
+        end_date_var.set(val)
+        try:
+            end_date_entry.entry.delete(0, tk.END)
+            end_date_entry.entry.insert(0, val)
+        except Exception:
+            pass
+    def get_end_date():
+        try:
+            return end_date_entry.entry.get()
+        except Exception:
+            return end_date_var.get()
     
     # 快捷按钮区域 - 更大的间距
     button_frame = ttk.Frame(date_frame)
-    button_frame.grid(row=1, column=0, columnspan=4, sticky=tk.W, pady=(0, 15))
+    button_frame.grid(row=2, column=0, columnspan=6, sticky=tk.W, pady=(0, 8))
     
     # 快捷按钮 - 更大的间距
-    week_btn = ttk.Button(button_frame, text="本周", command=set_week_start_end, width=12)
-    week_btn.pack(side=tk.LEFT, padx=(0, 15))
-    
-    month_btn = ttk.Button(button_frame, text="本月", command=set_month_start_end, width=12)
-    month_btn.pack(side=tk.LEFT, padx=(0, 15))
-    
-    default_btn = ttk.Button(button_frame, text="恢复默认", command=clear_dates, width=12)
+    week_btn = make_button(button_frame, text="本周", command=set_week_start_end, width=10, role='primary')
+    week_btn.pack(side=tk.LEFT, padx=(0, 8))
+    month_btn = make_button(button_frame, text="本月", command=set_month_start_end, width=10, role='primary')
+    month_btn.pack(side=tk.LEFT, padx=(0, 8))
+    default_btn = make_button(button_frame, text="恢复默认", command=clear_dates, width=10, role='primary')
     default_btn.pack(side=tk.LEFT)
+
+
     
     # 可选设置区域 - 改进版现代化布局
-    optional_frame = ttk.LabelFrame(main_frame, text="可选设置", padding=35)
+    optional_frame = ttk.LabelFrame(main_frame, text="▌可选设置", padding=16)
     optional_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 25))
+    try:
+        optional_frame.configure(style='Card.TLabelframe')
+    except Exception:
+        pass
 
     notebook = ttk.Notebook(optional_frame)
     notebook.pack(fill=tk.BOTH, expand=True)
@@ -1108,22 +1189,22 @@ def create_gui():
     product_tab = ttk.Frame(notebook)
     notebook.add(product_tab, text="产品线映射")
 
-    pl_manager = ProductLineManager(product_tab)
+    pl_manager = ui_components.ProductLineManager(product_tab)
     pl_manager.add_row()
 
     action_tab_frame = ttk.Frame(product_tab)
     action_tab_frame.pack(fill=tk.X)
-    ttk.Button(action_tab_frame, text="添加产品线", command=pl_manager.add_row).pack(pady=(15, 0), anchor='w')
+    ttk.Button(action_tab_frame, text="添加产品线", command=pl_manager.add_row, style='Info.TButton').pack(pady=(15, 0), anchor='w')
 
     # 载入历史映射
     pl_manager.load_from_file()
     
     # 操作按钮区域 - 改进版现代化布局
-    overlay = tk.Frame(root, bg=BG_COLOR)
+    overlay = tk.Frame(root, bg=BG_COLOR, padx=16, pady=16)
     overlay.place(relx=1.0, rely=1.0, x=-20, y=-20, anchor='se')
     
     # 创建ColumnMapper实例
-    column_mapper = ColumnMapper()
+    column_mapper = mapping_core.ColumnMapper()
     
     # 列映射配置按钮
     # 配置页签（在顶层 Notebook 中）
@@ -1131,19 +1212,30 @@ def create_gui():
     app_notebook.add(mapping_tab, text="列映射配置")
     build_mapping_content(mapping_tab, column_mapper)
 
+    info_tab = ttk.Frame(app_notebook)
+    app_notebook.add(info_tab, text="软件信息")
+    info_frame = ttk.Frame(info_tab, padding=30)
+    info_frame.pack(fill=tk.BOTH, expand=True)
+    ttk.Label(info_frame, text="工具作者：July-Chen-JIE", style='Card.TLabel', font=('Microsoft YaHei UI', 12)).pack(anchor=tk.W, pady=(0, 10))
+    ttk.Label(info_frame, text="版本：V1.6_20251127", style='Card.TLabel', font=('Microsoft YaHei UI', 12)).pack(anchor=tk.W, pady=(0, 10))
+    ttk.Label(info_frame, text="更新日期：20251127", style='Card.TLabel', font=('Microsoft YaHei UI', 12)).pack(anchor=tk.W)
+
     # 在叠加层内放置右下角固定按钮 - 更大的间距和更好的对齐
-    config_btn = ttk.Button(
-        overlay,
-        text="列映射配置",
-        command=lambda: app_notebook.select(mapping_tab),
-        width=15,
-    )
-    exit_btn = ttk.Button(overlay, text="退出", command=root.quit, width=12)
-    process_btn = ttk.Button(overlay, text="开始处理", command=start_process, width=15)
+    # config_btn = tb.Button(
+    #     overlay,
+    #     text="列映射配置",
+    #     command=lambda: app_notebook.select(mapping_tab),
+    #     width=15,
+    #     bootstyle='info'
+    # )
+    exit_btn = make_button(overlay, text="退出", command=root.quit, width=14, role='danger')
+    process_btn = make_button(overlay, text="开始处理", command=start_process, width=18, role='primary')
     # 排列按钮，保持25px间距
-    process_btn.grid(row=0, column=2, padx=(25, 0))
-    exit_btn.grid(row=0, column=1, padx=(25, 0))
-    config_btn.grid(row=0, column=0)
+    # info_btn = tb.Button(overlay, text="软件信息", command=lambda: app_notebook.select(info_tab), width=12, bootstyle='info')
+    process_btn.grid(row=0, column=3, padx=(25, 0), pady=(8, 8))
+    exit_btn.grid(row=0, column=2, padx=(25, 0), pady=(8, 8))
+    # config_btn.grid(row=0, column=1, padx=(25, 0))
+    # info_btn.grid(row=0, column=0)
     overlay.lift()
     
     # 添加一个空白框架来辅助布局，确保左右两侧的按钮有合适的间距
@@ -1232,6 +1324,54 @@ def build_mapping_content(container, column_mapper):
     button_frame.pack(fill=tk.X, pady=(30, 10))
     spacer_frame = ttk.Frame(button_frame)
     spacer_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+    def import_config():
+        from tkinter import filedialog
+        try:
+            path = filedialog.askopenfilename(filetypes=[("JSON", "*.json")])
+            if not path:
+                return
+            column_mapper.load_from_path(path)
+            for target, entry in mapping_entries.items():
+                aliases = column_mapper.get_mapping().get(target, [target])
+                entry.delete(0, tk.END)
+                entry.insert(0, ", ".join(aliases))
+            for source, entry in output_entries.items():
+                target = column_mapper.get_output_columns().get(source, source)
+                entry.delete(0, tk.END)
+                entry.insert(0, target)
+            messagebox.showinfo("成功", "配置导入成功")
+        except Exception as e:
+            messagebox.showerror("错误", f"配置导入失败: {e}")
+
+    def export_config():
+        from tkinter import filedialog
+        try:
+            path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON", "*.json")])
+            if not path:
+                return
+            column_mapper.save_to_path(path)
+            messagebox.showinfo("成功", "配置导出成功")
+        except Exception as e:
+            messagebox.showerror("错误", f"配置导出失败: {e}")
+
+    def refresh_config():
+        try:
+            column_mapper.load_mapping()
+            for target, entry in mapping_entries.items():
+                aliases = column_mapper.get_mapping().get(target, [target])
+                entry.delete(0, tk.END)
+                entry.insert(0, ", ".join(aliases))
+            for source, entry in output_entries.items():
+                target = column_mapper.get_output_columns().get(source, source)
+                entry.delete(0, tk.END)
+                entry.insert(0, target)
+            messagebox.showinfo("成功", "配置刷新成功")
+        except Exception as e:
+            messagebox.showerror("错误", f"配置刷新失败: {e}")
+
+    ttk.Button(button_frame, text="导入配置", command=import_config, width=12).pack(side=tk.RIGHT, padx=(8, 0))
+    ttk.Button(button_frame, text="导出配置", command=export_config, width=12).pack(side=tk.RIGHT, padx=(8, 0))
+    ttk.Button(button_frame, text="刷新配置", command=refresh_config, width=12).pack(side=tk.RIGHT, padx=(8, 0))
     ttk.Button(button_frame, text="保存配置", command=save_config, width=15).pack(side=tk.RIGHT)
 
     # 页签切换动画：进入配置页签时平滑滚动到顶部
