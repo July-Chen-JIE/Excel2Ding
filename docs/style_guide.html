@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel2Ding UI Style Guide</title>
+    <style>
+        :root {
+            --primary-color: #409EFF;
+            --secondary-color: #67C23A;
+            --success-color: #67C23A;
+            --warning-color: #E6A23C;
+            --danger-color: #F56C6C;
+            --info-color: #409EFF;
+
+            --bg-color: #F5F7FA;
+            --panel-bg: #FFFFFF;
+            --card-bg: #FFFFFF;
+            --hover-bg: #F8FAFC;
+
+            --text-color: #2D3748;
+            --secondary-text: #606266;
+            --placeholder-color: #A8ABB2;
+
+            --border-color: #DCDFE6;
+            --light-border: #EBEEF5;
+            --focus-border: #409EFF;
+
+            --shadow-color: #E9EDF3;
+
+            --title-font: 'Microsoft YaHei UI', 14px, bold;
+            --subtitle-font: 'Microsoft YaHei UI', 12px, bold;
+            --label-font: 'Microsoft YaHei UI', 10px;
+            --button-font: 'Microsoft YaHei UI', 9px, bold;
+            --entry-font: 'Microsoft YaHei UI', 9px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 40px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 32px;
+            color: var(--primary-color);
+            margin-bottom: 40px;
+            padding-bottom: 16px;
+            border-bottom: 3px solid var(--primary-color);
+        }
+
+        h2 {
+            font-size: 20px;
+            color: var(--text-color);
+            margin: 32px 0 16px;
+            padding-left: 12px;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        h3 {
+            font-size: 16px;
+            color: var(--secondary-text);
+            margin: 24px 0 12px;
+        }
+
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .color-card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .color-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        }
+
+        .color-swatch {
+            height: 80px;
+        }
+
+        .color-info {
+            padding: 12px;
+        }
+
+        .color-name {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .color-value {
+            font-family: monospace;
+            font-size: 13px;
+            color: var(--secondary-text);
+        }
+
+        .color-var {
+            font-family: monospace;
+            font-size: 11px;
+            color: var(--placeholder-color);
+            margin-top: 4px;
+        }
+
+        .font-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .font-card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .font-name {
+            font-size: 12px;
+            color: var(--secondary-text);
+            margin-bottom: 8px;
+        }
+
+        .font-preview {
+            font-size: 24px;
+            color: var(--text-color);
+        }
+
+        .font-spec {
+            font-family: monospace;
+            font-size: 11px;
+            color: var(--placeholder-color);
+            margin-top: 8px;
+        }
+
+        .button-demo {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-family: var(--button-font);
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 100px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #66b1ff;
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:active {
+            background-color: #337ecc;
+        }
+
+        .btn-secondary {
+            background-color: var(--hover-bg);
+            color: var(--secondary-text);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: #e2e8f0;
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #f78989;
+        }
+
+        .btn-info {
+            background-color: var(--info-color);
+            color: white;
+        }
+
+        .btn-info:hover {
+            background-color: #66b1ff;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            margin: 16px 0;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--light-border);
+        }
+
+        .input-demo {
+            margin: 16px 0;
+        }
+
+        .input-field {
+            width: 100%;
+            max-width: 300px;
+            padding: 10px 14px;
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            font-family: var(--entry-font);
+            font-size: 14px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--focus-border);
+            box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
+        }
+
+        .input-field:disabled {
+            background-color: var(--hover-bg);
+            color: var(--placeholder-color);
+            cursor: not-allowed;
+        }
+
+        .label-field {
+            display: block;
+            margin-bottom: 8px;
+            font-family: var(--label-font);
+            color: var(--text-color);
+        }
+
+        .progress-demo {
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background-color: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--primary-color);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .progress-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--secondary-text);
+        }
+
+        .tab-demo {
+            margin: 20px 0;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid var(--light-border);
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            color: var(--secondary-text);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: var(--text-color);
+            background-color: var(--hover-bg);
+        }
+
+        .tab.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .tab-content {
+            padding: 20px;
+            background: var(--card-bg);
+            border: 1px solid var(--light-border);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+        }
+
+        .layout-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .panel-header {
+            font-weight: bold;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--light-border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-icon {
+            width: 20px;
+            height: 20px;
+            background: var(--primary-color);
+            border-radius: 4px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: #9CA3AF;
+            color: white;
+            border-radius: 6px;
+            font-size: 14px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+
+        .spec-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            background: var(--card-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .spec-table th {
+            background: var(--primary-color);
+            color: white;
+            padding: 14px 16px;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        .spec-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--light-border);
+        }
+
+        .spec-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .spec-table tr:hover td {
+            background-color: var(--hover-bg);
+        }
+
+        .code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            margin: 16px 0;
+        }
+
+        .spacing-demo {
+            display: flex;
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .spacing-box {
+            background: var(--primary-color);
+            opacity: 0.3;
+            border-radius: 4px;
+        }
+
+        footer {
+            margin-top: 60px;
+            padding-top: 24px;
+            border-top: 1px solid var(--light-border);
+            text-align: center;
+            color: var(--placeholder-color);
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Excel2Ding UI Style Guide</h1>
+
+        <h2>色彩系统</h2>
+        <div class="color-grid">
+            <div class="color-card">
+                <div class="color-swatch" style="background: #409EFF;"></div>
+                <div class="color-info">
+                    <div class="color-name">Primary</div>
+                    <div class="color-value">#409EFF</div>
+                    <div class="color-var">--primary-color</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #67C23A;"></div>
+                <div class="color-info">
+                    <div class="color-name">Success</div>
+                    <div class="color-value">#67C23A</div>
+                    <div class="color-var">--success-color</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #E6A23C;"></div>
+                <div class="color-info">
+                    <div class="color-name">Warning</div>
+                    <div class="color-value">#E6A23C</div>
+                    <div class="color-var">--warning-color</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #F56C6C;"></div>
+                <div class="color-info">
+                    <div class="color-name">Danger</div>
+                    <div class="color-value">#F56C6C</div>
+                    <div class="color-var">--danger-color</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #409EFF;"></div>
+                <div class="color-info">
+                    <div class="color-name">Info</div>
+                    <div class="color-value">#409EFF</div>
+                    <div class="color-var">--info-color</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #F5F7FA;"></div>
+                <div class="color-info">
+                    <div class="color-name">Background</div>
+                    <div class="color-value">#F5F7FA</div>
+                    <div class="color-var">--bg-color</div>
+                </div>
+            </div>
+        </div>
+
+        <h2>文字色系</h2>
+        <div class="color-grid">
+            <div class="color-card">
+                <div class="color-swatch" style="background: #2D3748;"></div>
+                <div class="color-info">
+                    <div class="color-name">Text</div>
+                    <div class="color-value">#2D3748</div>
+                    <div class="color-var">--text-color</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #606266;"></div>
+                <div class="color-info">
+                    <div class="color-name">Secondary</div>
+                    <div class="color-value">#606266</div>
+                    <div class="color-var">--secondary-text</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #A8ABB2;"></div>
+                <div class="color-info">
+                    <div class="color-name">Placeholder</div>
+                    <div class="color-value">#A8ABB2</div>
+                    <div class="color-var">--placeholder-color</div>
+                </div>
+            </div>
+        </div>
+
+        <h2>字体系统</h2>
+        <div class="font-grid">
+            <div class="font-card">
+                <div class="font-name">Title Font</div>
+                <div class="font-preview" style="font-weight: bold;">标题文字</div>
+                <div class="font-spec">14px, Bold</div>
+            </div>
+            <div class="font-card">
+                <div class="font-name">Subtitle Font</div>
+                <div class="font-preview" style="font-size: 18px; font-weight: bold;">副标题文字</div>
+                <div class="font-spec">12px, Bold</div>
+            </div>
+            <div class="font-card">
+                <div class="font-name">Label Font</div>
+                <div class="font-preview" style="font-size: 14px;">标签文字</div>
+                <div class="font-spec">10px, Regular</div>
+            </div>
+            <div class="font-card">
+                <div class="font-name">Button Font</div>
+                <div class="font-preview" style="font-size: 13px; font-weight: bold;">按钮文字</div>
+                <div class="font-spec">9px, Bold</div>
+            </div>
+            <div class="font-card">
+                <div class="font-name">Entry Font</div>
+                <div class="font-preview" style="font-size: 13px;">输入框文字</div>
+                <div class="font-spec">9px, Regular</div>
+            </div>
+        </div>
+
+        <h2>按钮样式</h2>
+        <div class="card">
+            <div class="card-title">按钮变体</div>
+            <div class="button-demo">
+                <button class="btn btn-primary">主要按钮</button>
+                <button class="btn btn-secondary">次要按钮</button>
+                <button class="btn btn-danger">危险按钮</button>
+                <button class="btn btn-info">信息按钮</button>
+            </div>
+            <div class="button-demo">
+                <button class="btn btn-primary" disabled>禁用状态</button>
+            </div>
+        </div>
+
+        <h2>输入框</h2>
+        <div class="card">
+            <div class="card-title">文本输入</div>
+            <div class="input-demo">
+                <label class="label-field">默认状态</label>
+                <input type="text" class="input-field" placeholder="请输入内容...">
+            </div>
+            <div class="input-demo">
+                <label class="label-field">禁用状态</label>
+                <input type="text" class="input-field" placeholder="禁用状态" disabled>
+            </div>
+        </div>
+
+        <h2>进度条</h2>
+        <div class="card">
+            <div class="progress-demo">
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 65%;"></div>
+                </div>
+                <div class="progress-labels">
+                    <span>0%</span>
+                    <span>处理中... 65%</span>
+                    <span>100%</span>
+                </div>
+            </div>
+        </div>
+
+        <h2>页签组件</h2>
+        <div class="card">
+            <div class="tab-demo">
+                <div class="tabs">
+                    <div class="tab active">数据处理</div>
+                    <div class="tab">产品线映射</div>
+                    <div class="tab">列映射配置</div>
+                    <div class="tab">软件信息</div>
+                </div>
+                <div class="tab-content">
+                    当前选中的是「数据处理」页签内容区域
+                </div>
+            </div>
+        </div>
+
+        <h2>面板布局</h2>
+        <div class="layout-grid">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-icon"></div>
+                    文件设置
+                </div>
+                <p>面板内容区域，用于分组相关设置项。</p>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-icon"></div>
+                    日期筛选
+                </div>
+                <p>支持快速选择本周、本月、近30天等时间范围。</p>
+            </div>
+        </div>
+
+        <h2>Toast 提示</h2>
+        <div class="card">
+            <div style="text-align: center; padding: 40px;">
+                <p style="margin-bottom: 20px; color: var(--secondary-text);">浮动提示框效果</p>
+            </div>
+        </div>
+        <div class="toast">操作成功提示</div>
+
+        <h2>设计规格</h2>
+        <table class="spec-table">
+            <thead>
+                <tr>
+                    <th>属性</th>
+                    <th>值</th>
+                    <th>说明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>窗口尺寸</td>
+                    <td>610 x 830</td>
+                    <td>主窗口默认大小</td>
+                </tr>
+                <tr>
+                    <td>内边距</td>
+                    <td>25px</td>
+                    <td>全局内边距</td>
+                </tr>
+                <tr>
+                    <td>卡片内边距</td>
+                    <td>16px</td>
+                    <td>卡片组件内边距</td>
+                </tr>
+                <tr>
+                    <td>按钮内边距</td>
+                    <td>12px 10px</td>
+                    <td>按钮水平、垂直内边距</td>
+                </tr>
+                <tr>
+                    <td>输入框内边距</td>
+                    <td>8px 6px</td>
+                    <td>输入框内边距</td>
+                </tr>
+                <tr>
+                    <td>圆角</td>
+                    <td>6-8px</td>
+                    <td>按钮、卡片圆角</td>
+                </tr>
+                <tr>
+                    <td>阴影</td>
+                    <td>0 2px 8px rgba(0,0,0,0.08)</td>
+                    <td>卡片默认阴影</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>组件状态</h2>
+        <table class="spec-table">
+            <thead>
+                <tr>
+                    <th>状态</th>
+                    <th>视觉变化</th>
+                    <th>使用场景</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Default</td>
+                    <td>正常显示</td>
+                    <td>默认状态</td>
+                </tr>
+                <tr>
+                    <td>Hover</td>
+                    <td>轻微上移、阴影加深</td>
+                    <td>鼠标悬停</td>
+                </tr>
+                <tr>
+                    <td>Active / Pressed</td>
+                    <td>颜色加深</td>
+                    <td>点击按下</td>
+                </tr>
+                <tr>
+                    <td>Disabled</td>
+                    <td>颜色变灰、cursor: not-allowed</td>
+                    <td>禁用状态</td>
+                </tr>
+                <tr>
+                    <td>Focus</td>
+                    <td>边框高亮、添加阴影环</td>
+                    <td>键盘焦点</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <footer>
+            Excel2Ding UI Style Guide v1.7 | 设计系统文档
+        </footer>
+    </div>
+</body>
+</html>

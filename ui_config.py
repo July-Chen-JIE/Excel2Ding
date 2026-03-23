@@ -19,9 +19,9 @@ INFO_COLOR = "#409EFF"
 
 # 背景色系
 BG_COLOR = "#F5F7FA"
-PANEL_BG = "#FFFFFF"
-CARD_BG = "#FFFFFF"
-HOVER_BG = "#F8FAFC"
+PANEL_BG = "#FFFFFF"              # 面板白色背景
+CARD_BG = "#FFFFFF"               # 卡片白色背景
+HOVER_BG = "#F8FAFC"              # 悬停背景
 
 # 文字色系
 TEXT_COLOR = "#2D3748"
@@ -36,13 +36,13 @@ FOCUS_BORDER = "#409EFF"
 # 阴影效果
 SHADOW_COLOR = "#E9EDF3"
 
-# 字体配置
-TITLE_FONT = ('Microsoft YaHei UI', 14, 'bold')
-SUBTITLE_FONT = ('Microsoft YaHei UI', 12, 'bold')
-LABEL_FONT = ('Microsoft YaHei UI', 10)
-BUTTON_FONT = ('Microsoft YaHei UI', 9, 'bold')
-ENTRY_FONT = ('Microsoft YaHei UI', 9)
-SMALL_FONT = ('Microsoft YaHei UI', 8)
+# 字体配置 - 优化字体大小，提升可读性
+TITLE_FONT = ('Microsoft YaHei UI', 14, 'bold')         # 主标题
+SUBTITLE_FONT = ('Microsoft YaHei UI', 12, 'bold')      # 副标题
+LABEL_FONT = ('Microsoft YaHei UI', 10)                 # 标签文字
+BUTTON_FONT = ('Microsoft YaHei UI', 9, 'bold')         # 按钮文字
+ENTRY_FONT = ('Microsoft YaHei UI', 9)                  # 输入框文字
+SMALL_FONT = ('Microsoft YaHei UI', 8)                  # 小号文字
 
 # 间距配置
 BUTTON_PADDING = (12, 10)
@@ -73,8 +73,9 @@ def apply_design_system(style):
     style.configure('Horizontal.TScrollbar', gripcount=0, background=LIGHT_BORDER, darkcolor=LIGHT_BORDER, lightcolor=LIGHT_BORDER, troughcolor=CARD_BG, bordercolor=LIGHT_BORDER, arrowcolor=SECONDARY_TEXT)
     style.configure('TNotebook', background=BG_COLOR, borderwidth=0, tabmargins=(6, 6, 6, 0))
     style.configure('TNotebook.Tab', padding=(6, 4), font=('Microsoft YaHei UI', 11), foreground=SECONDARY_TEXT)
-    style.map('TNotebook.Tab', background=[('selected', 'white'), ('active', '#F2F6FC')], foreground=[('selected', TEXT_COLOR), ('active', TEXT_COLOR)])
+    style.map('TNotebook.Tab',
+              background=[('selected', 'white'), ('active', '#F2F6FC')],
+              foreground=[('selected', TEXT_COLOR), ('active', TEXT_COLOR)])
     style.configure('primary.TButton', padding=BUTTON_PADDING, font=BUTTON_FONT)
     style.configure('danger.TButton', padding=BUTTON_PADDING, font=BUTTON_FONT)
     style.configure('info.TButton', padding=BUTTON_PADDING, font=BUTTON_FONT)
-

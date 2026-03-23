@@ -1,6 +1,13 @@
 import tkinter as tk
 from tkinter import ttk
-from ui_config import LABEL_FONT, TEXT_COLOR, ENTRY_FONT
+import logging
+
+try:
+    from ui_config import LABEL_FONT, TEXT_COLOR, ENTRY_FONT
+except ImportError:
+    LABEL_FONT = ('Microsoft YaHei UI', 10)
+    TEXT_COLOR = "#2D3748"
+    ENTRY_FONT = ('Microsoft YaHei UI', 9)
 
 
 class ProductLineManager:
@@ -30,39 +37,62 @@ class ProductLineManager:
         contact_entry.grid(row=idx, column=3, sticky=tk.EW, padx=(8, 8), pady=(8, 10))
 
         delete_btn = ttk.Button(
-            self.frame, text="删除", style='Danger.TButton', command=lambda i=idx: self.remove_row(i)
+            self.frame, text="删除", style='Danger.TButton',
+            command=lambda i=idx: self.remove_row(i)
         )
         delete_btn.grid(row=idx, column=4, padx=(5, 0), pady=(8, 10))
 
-        self.rows.append((product_var, contact_var, product_entry, contact_entry, delete_btn))
+        self.rows.append({
+            'product_var': product_var,
+            'contact_var': contact_var,
+            'product_entry': product_entry,
+            'contact_entry': contact_entry,
+            'delete_btn': delete_btn
+        })
 
     def remove_row(self, idx):
+        if not (0 <= idx < len(self.rows)):
+            return
         for widget in self.frame.grid_slaves(row=idx):
             widget.destroy()
-        if 0 <= idx < len(self.rows):
-            self.rows.pop(idx)
-        for i, (p_var, c_var, p_entry, c_entry, btn) in enumerate(self.rows):
+        self.rows.pop(idx)
+        self._rebuild_grid()
+
+    def _rebuild_grid(self):
+        for i, row_data in enumerate(self.rows):
             for widget in self.frame.grid_slaves(row=i + 1):
                 widget.grid(row=i)
-            btn.config(command=lambda j=i: self.remove_row(j))
+            row_data['delete_btn'].config(command=lambda j=i: self.remove_row(j))
 
     def clear(self):
-        for i in range(len(self.rows)):
+        while self.rows:
             self.remove_row(0)
 
     def get_mappings(self):
         mappings = []
-        for product_var, contact_var, *_ in self.rows:
-            p = product_var.get().strip()
-            c = contact_var.get().strip()
+        for row_data in self.rows:
+            p = row_data['product_var'].get().strip()
+            c = row_data['contact_var'].get().strip()
             if p and c:
                 mappings.append((p, c))
         return mappings
 
     def load_from_file(self, path='product_mapping.json'):
-        import json, os, logging
+        if not path:
+            path = 'product_mapping.json'
         try:
+            if not path or not path.startswith('/') and not path.startswith('\\') and ':' not in path:
+                if not path.startswith('./') and not path.startswith('.\\'):
+                    path = path
+                else:
+                    import os
+                    path = os.path.abspath(path)
+        except Exception:
+            pass
+        try:
+            import os
             if os.path.exists(path):
+                import json
                 with open(path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 for item in data.get('mappings', []):
@@ -71,11 +101,12 @@ class ProductLineManager:
             logging.warning("加载产品线映射失败: %s", e)
 
     def save_to_file(self, path='product_mapping.json'):
-        import json, logging
+        if not path:
+            path = 'product_mapping.json'
         try:
-            data = {'mappings': [{'product': p, 'contact': c} for p, c in self.get_mappings()]}
+            import json
+            mappings_data = [{'product': p, 'contact': c} for p, c in self.get_mappings()]
             with open(path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+                json.dump({'mappings': mappings_data}, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logging.warning("保存产品线映射失败: %s", e)
-
